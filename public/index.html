@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Breakpoint Guide Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 2rem;
+        background: #f6f8fa;
+      }
+      main {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+        max-width: 640px;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: 1px solid #d0d7de;
+        font-size: 1rem;
+      }
+      button {
+        margin-top: 1.5rem;
+        padding: 0.8rem 1.5rem;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(120deg, #2563eb, #7c3aed);
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+        box-shadow: 0 12px 30px rgba(37, 99, 235, 0.25);
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      .hint {
+        margin-top: 1.5rem;
+        color: #475569;
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+      .log {
+        margin-top: 2rem;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 1rem;
+        border-radius: 10px;
+        font-family: "Fira Code", monospace;
+        min-height: 140px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Breakpoint Tour Playground</h1>
+      <p>Try to change your display name. Nothing seems to happen – let the agent investigate.</p>
+
+      <label for="display-name">Display name</label>
+      <input id="display-name" type="text" value="Ada Lovelace" />
+
+      <button id="save-button">Save changes</button>
+
+      <p class="hint">
+        Tip: the bug is hidden inside a nested callback. The agent will need to instrument the right handler.
+      </p>
+
+      <section class="log" id="ui-log"></section>
+    </main>
+
+    <script type="module">
+      const logEl = document.querySelector("#ui-log");
+      const saveButton = document.querySelector("#save-button");
+      const input = document.querySelector("#display-name");
+
+      if (!logEl || !saveButton || !input) {
+        throw new Error("Demo markup missing required elements");
+      }
+
+      function appendLog(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        logEl.textContent += `[${timestamp}] ${message}\n`;
+      }
+
+      function postUpdate(payload) {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            appendLog(`POST /profile => ${JSON.stringify(payload)}`);
+            resolve({ ok: true });
+          }, 400);
+        });
+      }
+
+      async function saveDisplayName() {
+        const payload = {
+          name: input.value,
+          updatedAt: Date.now()
+        };
+        const response = await postUpdate(payload);
+        if (!response.ok) {
+          throw new Error("Network failure");
+        }
+        appendLog("Profile saved – UI should refresh now");
+      }
+
+      function wireButton() {
+        saveButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          queueMicrotask(() => {
+            try {
+              // Bug: developer forgot to await the promise, so errors disappear silently.
+              saveDisplayName().then(() => {
+                appendLog("UI refresh was skipped – bug reproduces here");
+              });
+            } catch (error) {
+              appendLog(`Caught error: ${error.message}`);
+            }
+          });
+        });
+      }
+
+      wireButton();
+      appendLog("Ready. Click the button to reproduce the issue.");
+    </script>
+  </body>
+</html>
